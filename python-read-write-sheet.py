@@ -3,6 +3,8 @@ import smartsheet
 import logging
 import os
 
+#token
+token = "Gxr62V7JvF8IPILpsaaGVHys3sgcEp8l5CTxI"
 _dir = os.path.dirname(os.path.abspath(__file__))
 
 # The API identifies columns by Id, but it's more convenient to refer to column names. Store a map here
@@ -46,7 +48,7 @@ def evaluate_row_and_build_updates(source_row):
 print("Starting ...")
 
 # Initialize client. Uses the API token in the environment variable "SMARTSHEET_ACCESS_TOKEN"
-smart = smartsheet.Smartsheet()
+smart = smartsheet.Smartsheet(token)
 # Make sure we don't miss any error
 smart.errors_as_exceptions(True)
 
