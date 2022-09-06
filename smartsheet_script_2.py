@@ -13,20 +13,30 @@ token = "Gxr62V7JvF8IPILpsaaGVHys3sgcEp8l5CTxI"
 smart = smartsheet.Smartsheet(token)
 print("api call instantiated")
 
+#turn on python exception detection for smartsheet api errors
+smart.errors_as_exceptions(True)
+
 #return all Brasfield & Gorrie Smartsheet users in json format
-response = smart.Users.list_users(
-  include = "lastLogin",
-  include_all=True)
-print("json users list obtained")
+try:
+    response = smart.Users.list_users(
+    include = "lastLogin",
+    include_all=True)
+except Exception as e:
+    print("SS API error detected")
+    exc = json.loads(str(e))
+    print(exc)
+else:
+    users = json.loads(str(response))
+    print("json users list obtained")
 
-#write the users to a json file for transfer to python dictionary
-filename = r"Z:\\Shared\\Users\\WKerby\\My Computer\\Documents\\Smartsheet_py\\python-read-write-sheet\\users.json"
-with open(filename, "w") as fileobject:
-    fileobject.write(str(response))
+# #write the users to a json file for transfer to python dictionary
+# filename = r"Z:\\Shared\\Users\\WKerby\\My Computer\\Documents\\Smartsheet_py\\python-read-write-sheet\\users.json"
+# with open(filename, "w") as fileobject:
+#     fileobject.write(str(response))
 
-#use json package to convert json file to python dictionary
-with open('users.json') as json_file:
-    users = json.load(json_file)
+# #use json package to convert json file to python dictionary
+# with open('users.json') as json_file:
+#     users = json.load(json_file)
 
 #create respective dicts for currently licensed users and currently unlicensed users
 licensed_users = {"user_id":[],"user_email":[],"sheet_count":[],"last_login":[]}
@@ -66,17 +76,24 @@ else:
 sheet_id = 5190433962780548
 
 #read the Smartsheet User License Requests 2.0 sheet
-sheet = smart.Sheets.get_sheet(5190433962780548) #sheet id
-print("smartsheet user license requests 2.0 sheet read")
+try:
+    sheet = smart.Sheets.get_sheet(5190433962780548) #sheet id
+    print("smartsheet user license requests 2.0 sheet read")
+except Exception as e:
+    print("SS API error detected")
+    exc = json.loads(str(e))
+    print(exc)
+else:
+    sheet = json.loads(str(sheet))
 
-#write sheet data to a json file for transfer to python dictionary
-filename = r"Z:\\Shared\\Users\\WKerby\\My Computer\\Documents\\Smartsheet_py\\python-read-write-sheet\\smartsheet_user_license_requests.json"
-with open(filename, "w") as fileobject:
-    fileobject.write(str(sheet))
+# #write sheet data to a json file for transfer to python dictionary
+# filename = r"Z:\\Shared\\Users\\WKerby\\My Computer\\Documents\\Smartsheet_py\\python-read-write-sheet\\smartsheet_user_license_requests.json"
+# with open(filename, "w") as fileobject:
+#     fileobject.write(str(sheet))
 
-#use json package to convert json file to python dictionary
-with open('smartsheet_user_license_requests.json') as json_file:
-    sheet = json.load(json_file)
+# #use json package to convert json file to python dictionary
+# with open('smartsheet_user_license_requests.json') as json_file:
+#     sheet = json.load(json_file)
 
 #store column ids of Smartsheet User License Requests 2.0 sheet in dictionary
 columns = {}
@@ -127,25 +144,42 @@ for quarter in list(quarters.quarters(sheet["rows"]).values()):
                     #bg user has a Smartsheet account, opting for a license (provision him/her a license and indicate that request has been handled)
                     else:
                         print("HasSmartsheetAccount = Yes, ProvisionAccount = No, ProvisionLicense = Yes")
-                        updated_user = smart.Users.update_user(
-                        unlicensed_users['user_id'][unlicensed_users['user_email'].index(user_row['cells'][6]['value'])],     # user_id
-                        smartsheet.models.User({ #will need a try-except block here in case there are no available licenses
-                        'licensed_sheet_creator': True,
-                        'admin': False
-                        }))
-                        # Build new cell value
-                        new_cell = smartsheet.models.Cell()
-                        new_cell.column_id = columns['RequestHandled?']
-                        new_cell.value = True
-                        new_cell.strict = False
-                        # Build the row to update
-                        new_row = smartsheet.models.Row()
-                        new_row.id = user_row["id"]
-                        new_row.cells.append(new_cell)
-                        # Update rows
-                        updated_row = smart.Sheets.update_rows(
-                        sheet_id,      # sheet_id
-                        [new_row])
+                        try:
+                            updated_user = smart.Users.update_user(
+                            unlicensed_users['user_id'][unlicensed_users['user_email'].index(user_row['cells'][6]['value'])],     # user_id
+                            smartsheet.models.User({ #will need a try-except block here in case there are no available licenses
+                            'licensed_sheet_creator': True,
+                            'admin': False
+                            }))
+                        except Exception as e:
+                            print("SS API Error detected")
+                            exc = json.loads(str(e))
+                            if exc["result"]["code"] == 1014: #There are no licenses available on your account
+                                row_a = smartsheet.models.Row()
+                                row_a.to_bottom = True
+                                row_a.cells.append({
+                                'column_id': 4878629775665028,#column id for user email in Smartsheet License Purchase Requests
+                                'value': user_row['cells'][6]['displayValue'],
+                                'strict': False
+                                })
+                                #add rows to sheet
+                                response = smart.Sheets.add_rows(
+                                2686308175898500,       # sheet_id for Smartsheet License Purchase Requests
+                                [row_a])
+                        else:
+                            # Build new cell value
+                            new_cell = smartsheet.models.Cell()
+                            new_cell.column_id = columns['RequestHandled?']
+                            new_cell.value = True
+                            new_cell.strict = False
+                            # Build the row to update
+                            new_row = smartsheet.models.Row()
+                            new_row.id = user_row["id"]
+                            new_row.cells.append(new_cell)
+                            # Update rows
+                            updated_row = smart.Sheets.update_rows(
+                            sheet_id,      # sheet_id
+                            [new_row])
                 #bg employee does not yet have a Smartsheet account
                 else:
                     if user_row['cells'][9]['displayValue'] == "I would like a Smartsheet account (unlicensed)":
@@ -159,28 +193,59 @@ for quarter in list(quarters.quarters(sheet["rows"]).values()):
                         'licensed_sheet_creator': False
                     })
                     )
+                        # Build new cell value
+                        new_cell = smartsheet.models.Cell()
+                        new_cell.column_id = columns['RequestHandled?']
+                        new_cell.value = True
+                        new_cell.strict = False
+                        # Build the row to update
+                        new_row = smartsheet.models.Row()
+                        new_row.id = user_row["id"]
+                        new_row.cells.append(new_cell)
+                        # Update rows
+                        updated_row = smart.Sheets.update_rows(
+                        sheet_id,      # sheet_id
+                        [new_row])
                     else:
                         print("HasSmartsheetAccount = No, ProvisionAccount = Yes, ProvisionLicense = Yes")
-                        new_user = smart.Users.add_user(
-                        smartsheet.models.User({ #will need a try-except block here in case there are no available licenses
-                        'first_name': user_row['cells'][4]['displayValue'],
-                        'last_name': user_row['cells'][5]['displayValue'],
-                        'email': user_row['cells'][6]['displayValue'],
-                        'admin': False,
-                        'licensed_sheet_creator': True
-                    })
-                    )
-                    # Build new cell value
-                    new_cell = smartsheet.models.Cell()
-                    new_cell.column_id = columns['RequestHandled?']
-                    new_cell.value = True
-                    new_cell.strict = False
-                    # Build the row to update
-                    new_row = smartsheet.models.Row()
-                    new_row.id = user_row["id"]
-                    new_row.cells.append(new_cell)
-                    # Update rows
-                    updated_row = smart.Sheets.update_rows(
-                    sheet_id,      # sheet_id
-                    [new_row])
+                        try:
+                            new_user = smart.Users.add_user(
+                            smartsheet.models.User({ #will need a try-except block here in case there are no available licenses
+                            'first_name': user_row['cells'][4]['displayValue'],
+                            'last_name': user_row['cells'][5]['displayValue'],
+                            'email': user_row['cells'][6]['displayValue'],
+                            'admin': False,
+                            'licensed_sheet_creator': True
+                        })
+                        )
+                        except Exception as e:
+                            print("SS API Error detected")
+                            exc = json.loads(str(e))
+                            if exc["result"]["code"] == 1014: #There are no licenses available on your account
+                                row_a = smartsheet.models.Row()
+                                row_a.to_bottom = True
+                                row_a.cells.append({
+                                'column_id': 4878629775665028,#column id for user email in Smartsheet License Purchase Requests
+                                'value': user_row['cells'][6]['displayValue'],
+                                'strict': False
+                                })
+                                #add rows to sheet
+                                response = smart.Sheets.add_rows(
+                                2686308175898500,       # sheet_id for Smartsheet License Purchase Requests
+                                [row_a])
+                        else:
+                            # Build new cell value
+                            new_cell = smartsheet.models.Cell()
+                            new_cell.column_id = columns['RequestHandled?']
+                            new_cell.value = True
+                            new_cell.strict = False
+                            # Build the row to update
+                            new_row = smartsheet.models.Row()
+                            new_row.id = user_row["id"]
+                            new_row.cells.append(new_cell)
+                            # Update rows
+                            updated_row = smart.Sheets.update_rows(
+                            sheet_id,      # sheet_id
+                            [new_row])
 print('user license request(s) handled')
+
