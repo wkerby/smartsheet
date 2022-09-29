@@ -6,6 +6,10 @@ import json
 import quarters
 import smtplib
 
+#create a custom Smartsheet exception to use for testing API errors (such as no licenses available on account 1014 error)
+class smartsheet_exception(Exception):
+    pass
+
 #define smartsheet user-specific api token
 token = "Gxr62V7JvF8IPILpsaaGVHys3sgcEp8l5CTxI"
 
@@ -166,6 +170,20 @@ for quarter in list(quarters.quarters(sheet["rows"]).values()):
                                 response = smart.Sheets.add_rows(
                                 2686308175898500,       # sheet_id for Smartsheet License Purchase Requests
                                 [row_a])
+                            else: #if the Smartsheet API error is anything other than the 1014 - no available licenses error, assume all worked well and signify that request has been handled
+                            # Build new cell value
+                                new_cell = smartsheet.models.Cell()
+                                new_cell.column_id = columns['RequestHandled?']
+                                new_cell.value = True
+                                new_cell.strict = False
+                                # Build the row to update
+                                new_row = smartsheet.models.Row()
+                                new_row.id = user_row["id"]
+                                new_row.cells.append(new_cell)
+                                # Update rows
+                                updated_row = smart.Sheets.update_rows(
+                                sheet_id,      # sheet_id
+                                [new_row])
                         else:
                             # Build new cell value
                             new_cell = smartsheet.models.Cell()

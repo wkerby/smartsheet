@@ -4,6 +4,7 @@ import logging
 import os
 import json
 import quarters
+import time
 
 #define smartsheet user-specific api token
 token = "Gxr62V7JvF8IPILpsaaGVHys3sgcEp8l5CTxI"
@@ -27,7 +28,7 @@ except Exception as e:
 else:
     users = json.loads(str(response))
 
-#create respective dicts for currently licensed users and currently unlicensed users
+#create dicts for currently licensed users and currently unlicensed users
 licensed_users = {"user_id":[],"user_email":[],"sheet_count":[],"last_login":[]}
 unlicensed_users = {"user_id":[],"user_email":[]}
 for user in users["data"]:
